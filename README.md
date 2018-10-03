@@ -14,22 +14,6 @@ The task is to predict the status of active or terminated.
 Content
 The data contains
 
-employee id
-employee record date ( year of data)
-birth date
-hire date
-termination date
-age
-length of service
-city
-department
-job title
-store number
-gender
-termination reason
-termination type
-status year
-status
-business unit
+employee id, employee record, date ( year of data), birth date, hire date, termination date, age, length of service, city, department, job title, store number, gender, termination reason, termination type, status year, status, business unit
 
 These might be typical types of data in hris.
