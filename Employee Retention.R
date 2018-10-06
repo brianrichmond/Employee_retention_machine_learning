@@ -42,7 +42,7 @@ ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_de
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 
 # plot terminated & active by age & length_of_service
-library(caret)
+library(caret) # functions to streamline process for predictive models
 featurePlot(x=emp[,6:7], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
 featurePlot(x=emp[,6:7], y=emp$STATUS,plot="box",auto.key = list(columns = 2))
 
@@ -52,9 +52,46 @@ if (!require(rattle)) install.packages('rattle')
 library(rattle) # graphical interface for data science in R
 library(magrittr) # For the %>% and %<>% operators.
 
+
+# Here we use all years before 2015 (2006-14) as the training set, with the last year (2015) as the test set
+emp_train <- subset(emp, STATUS_YEAR < 2015)
+emp_test <- subset(emp, STATUS_YEAR == 2015)
+
 set.seed(314) # set a pre-defined value for the random seed so that results are repeatable
 
-#  The data show many more resignations in 2011-14 than in previous years, so this subset will be used as the training set, with the last year (2015) as the test set
+## RANDOM FOREST MODEL of terminations
+## No NAs in dataset, so no need to impute or take other measures
+library(randomForest)  # random forest modeling
+# select variables to be included in model predicting terminations, resignations (voluntary terminations)
+term_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","STATUS")
+emp_term_RF <- randomForest(STATUS ~ .,
+                            data = emp_train[term_vars],
+                            ntree=500, importance = TRUE,
+                            na.action = na.omit)
+emp_term_RF  # view results & Confusion matrix
+
+# Calculate the AUC (Area Under the Curve) for train set on itself
+library(pROC)
+pROC::roc(emp_term_RF$y, as.numeric(emp_term_RF$predicted))
+
+# predictions based on test dataset (2015)
+emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_test)
+emp_term_RF.tbl <- xtabs(~as.numeric(emp_term_RF_pred)+emp_test$STATUS)
+emp_term_RF.tbl
+emp_t_RF.tbl <- prop.table(emp_term_RF.tbl)
+emp_t_RF.tbl
+emp_term_RF.acc <-sum(diag(emp_term_RF.tbl)/sum(emp_term_RF.tbl))
+print(paste("Random Forest Test Accuracy:",emp_term_RF.acc))
 
 
+# Calculate the AUC (Area Under the Curve)
+pROC::roc(emp_term_RF_pred$y, as.numeric(emp_term_RF_pred$predicted))
+
+# Examine important variables (type 1=mean decrease in accuracy; 2=...in node impurity)
+varImpPlot(emp_term_RF,type=1, main="Variable Importance (Accuracy)",
+           sub = "Random Forest Model")
+varImpPlot(emp_term_RF,type=2, main="Variable Importance (Node Impurity)",
+           sub = "Random Forest Model")
+var_importance <-importance(emp_term_RF)
+var_importance
 
