@@ -95,3 +95,11 @@ varImpPlot(emp_term_RF,type=2, main="Variable Importance (Node Impurity)",
 var_importance <-importance(emp_term_RF)
 var_importance
 
+
+### NEXT: Random forest model of voluntary terminations (resignations)
+## create separate variable for voluntary_terminations
+
+## find an efficient way to plot ROC & Confusion Matrix, esp success of identifying vol_terms
+
+
+
