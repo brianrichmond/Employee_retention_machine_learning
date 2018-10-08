@@ -3,7 +3,7 @@
 ##    1. Create model to accurately predict employees who leave
 ##    2. Identify key factors related to employee churn
 ## Brian Richmond
-## Updated 2018-10-3
+## Updated 2018-10-8
 
 
 # load data
@@ -44,11 +44,9 @@ ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_de
 # plot terminated & active by age & length_of_service
 library(caret) # functions to streamline process for predictive models
 featurePlot(x=emp[,6:7], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
-featurePlot(x=emp[,6:7], y=emp$STATUS,plot="box",auto.key = list(columns = 2))
 
 ### Modeling
 # Partition the data into training and test sets
-if (!require(rattle)) install.packages('rattle')
 library(rattle) # graphical interface for data science in R
 library(magrittr) # For the %>% and %<>% operators.
 
@@ -74,6 +72,8 @@ emp_term_RF  # view results & Confusion matrix
 library(pROC)
 pROC::roc(emp_term_RF$y, as.numeric(emp_term_RF$predicted))
 
+##### ?? plot ROC?
+
 # predictions based on test dataset (2015)
 emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_test)
 emp_term_RF.tbl <- xtabs(~as.numeric(emp_term_RF_pred)+emp_test$STATUS)
@@ -82,10 +82,6 @@ emp_t_RF.tbl <- prop.table(emp_term_RF.tbl)
 emp_t_RF.tbl
 emp_term_RF.acc <-sum(diag(emp_term_RF.tbl)/sum(emp_term_RF.tbl))
 print(paste("Random Forest Test Accuracy:",emp_term_RF.acc))
-
-
-# Calculate the AUC (Area Under the Curve)
-pROC::roc(emp_term_RF_pred$y, as.numeric(emp_term_RF_pred$predicted))
 
 # Examine important variables (type 1=mean decrease in accuracy; 2=...in node impurity)
 varImpPlot(emp_term_RF,type=1, main="Variable Importance (Accuracy)",
