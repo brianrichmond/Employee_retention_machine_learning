@@ -77,25 +77,12 @@ pROC::roc(emp_term_RF$y, as.numeric(emp_term_RF$predicted))
 ##### ?? plot ROC?
 
 # predictions based on test dataset (2015)
-if(!require(e1071)){install.packages(e1071, dependencies = TRUE)}
 emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_test)
+if(!"e1071" %in% installed.packages()) install.packages("e1071")  # package e1071 required for confusionMatrix function
 confusionMatrix(data = emp_term_RF_pred, reference = emp_test$STATUS,
-                mode = "prec_recall")
+                positive = "TERMINATED")  # mode = "prec_recall" if preferred
 
-
-
-
-emp_term_RF.tbl <- xtabs(~as.numeric(emp_term_RF_pred)+emp_test$STATUS)
-emp_term_RF.tbl
-emp_t_RF.tbl <- prop.table(emp_term_RF.tbl)
-emp_t_RF.tbl
-emp_term_RF.acc <-sum(diag(emp_term_RF.tbl)/sum(emp_term_RF.tbl))
-print(paste("Random Forest Test Accuracy:",emp_term_RF.acc))
-
-
-
-
-
+#  Here Sensitivity = true positives (aka "Recall")
 
 
 # Examine important variables (type 1=mean decrease in accuracy; 2=...in node impurity)
