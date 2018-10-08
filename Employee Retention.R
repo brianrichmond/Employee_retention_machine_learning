@@ -84,6 +84,7 @@ confusionMatrix(data = emp_term_RF_pred, reference = emp_test$STATUS,
 
 
 
+
 emp_term_RF.tbl <- xtabs(~as.numeric(emp_term_RF_pred)+emp_test$STATUS)
 emp_term_RF.tbl
 emp_t_RF.tbl <- prop.table(emp_term_RF.tbl)
