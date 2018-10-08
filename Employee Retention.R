@@ -14,6 +14,8 @@ dim(emp)  # number of rows & columns in data
 str(emp)  # structure of the data, data types
 summary(emp)  # summary stats
 
+emp$termreason_desc <- as.factor(gsub("Resignaton", "Resignation", emp$termreason_desc))  # correct misspelling in original Kaggle dataset
+
 ## Summary stats show that there are about 7,000 employee ids with records across years from 2006-15
 
 # explore status
@@ -92,8 +94,13 @@ var_importance <-importance(emp_term_RF)
 var_importance
 
 
-### NEXT: Random forest model of voluntary terminations (resignations)
-## create separate variable for voluntary_terminations
+## Random forest model of voluntary terminations (resignations)
+# create separate variable for voluntary_terminations
+emp$resigned <- ifelse(emp$termreason_desc == "Resignation", "Yes", "No")
+emp$resigned <- as.factor(emp$resigned)  # convert to factor (from character)
+summary(emp$resigned)  # see that there are only 385 resignations
+
+
 
 ## find an efficient way to plot ROC & Confusion Matrix, esp success of identifying vol_terms
 
