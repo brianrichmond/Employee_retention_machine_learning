@@ -48,7 +48,7 @@ ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_de
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 
 # plot terminated & active by age & length_of_service
-library(caret) # functions to streamline process for predictive models
+library(caret) # machine learning package + functions to streamline process for predictive models
 featurePlot(x=emp[,6:7], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
 
 ### Modeling
@@ -121,7 +121,6 @@ emp_res_RF <- randomForest(resigned ~ .,
                             na.action = na.omit)
 emp_res_RF  # view results & Confusion matrix
 
-
 ## The results show that none of the 'resigned' were accurately predicted by the model. That suggests that 1) there are too few 'resigned' in the model (too much imbalance), 2) the mock data used here really has no pattern in the employees who resigned, or 3) both.
 ## Let's try the model on the test set:
 # generate predictions based on test data ("emp_test")
@@ -129,7 +128,27 @@ emp_res_RF_pred <- predict(emp_res_RF, newdata = emp_test)
 confusionMatrix(data = emp_res_RF_pred, reference = emp_test$resigned,
                 positive = "Yes")  # mode = "prec_recall" if preferred
 # Here Sensitivity = true positives (aka "Recall")
+
 ## Sensitivity = 0; the model completely failed. It's worse than random guessing!
+## Next step: create more balanced datasets:
+library(ROSE)  # "Random Over Sampling Examples"; methods to balance data
+emp_train_rose <- ROSE(resigned ~ ., data = emp_train, seed=125)$data
+
+# Tables to show balanced dataset sample sizes
+table(emp_train_rose$resigned)
+emp_res_rose_RF <- randomForest(resigned ~ .,
+                           data = emp_train_rose[res_vars],
+                           ntree=500, importance = TRUE,
+                           na.action = na.omit)
+emp_res_rose_RF  # view results & Confusion matrix
+
+## Let's try the model on the test set:
+# generate predictions based on test data ("emp_test")
+emp_res_rose_RF_pred <- predict(emp_res_rose_RF, newdata = emp_test)
+confusionMatrix(data = emp_res_rose_RF_pred, reference = emp_test$resigned,
+                positive = "Yes")  # mode = "prec_recall" if preferred
+# Here Sensitivity = true positives (aka "Recall")
+
 
 
 ####################
@@ -164,16 +183,19 @@ dim(emp_res_boost_pred)
 ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, classProbs = TRUE, summaryFunction = twoClassSummary)
 emp_res_gbm <- train(resigned ~ ., data = emp_train[res_vars], method = 'gbm',
                      trControl = ctrl, metric = 'map', verbose = FALSE)
+### THIS TOOK A LONG TIME
 
 emp_res_gbm
-summary(emp_res_boost)
+summary(emp_res_gbm)
 
 confusionMatrix(data = emp_res_boost_pred, reference = emp_test$resigned,
                 positive = "Yes")  # mode = "prec_recall" if preferred
 
 
 ##### 
-# 1. xgboost model
-# 2. upsample 'resigned'?
+# 1. try under-, over-sampling, & ROSE on 'resigned'
+#     (https://www.r-bloggers.com/dealing-with-unbalanced-data-in-machine-learning/)
+# 2. repeat random forest
+# 3. xgboost model
 
 
