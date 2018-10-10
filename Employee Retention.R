@@ -126,12 +126,14 @@ emp_res_RF  # view results & Confusion matrix
 # generate predictions based on test data ("emp_test")
 emp_res_RF_pred <- predict(emp_res_RF, newdata = emp_test)
 confusionMatrix(data = emp_res_RF_pred, reference = emp_test$resigned,
-                positive = "Yes")  # mode = "prec_recall" if preferred
+                positive = "Yes", mode = "prec_recall")
 # Here Sensitivity = true positives (aka "Recall")
-
 ## Sensitivity = 0; the model completely failed. It's worse than random guessing!
+
+
 ## Next step: create more balanced datasets:
-library(ROSE)  # "Random Over Sampling Examples"; methods to balance data
+# (https://www.r-bloggers.com/dealing-with-unbalanced-data-in-machine-learning/)
+library(ROSE)  # "Random Over Sampling Examples"; generates synthetic balanced samples
 emp_train_rose <- ROSE(resigned ~ ., data = emp_train, seed=125)$data
 
 # Tables to show balanced dataset sample sizes
@@ -146,9 +148,19 @@ emp_res_rose_RF  # view results & Confusion matrix
 # generate predictions based on test data ("emp_test")
 emp_res_rose_RF_pred <- predict(emp_res_rose_RF, newdata = emp_test)
 confusionMatrix(data = emp_res_rose_RF_pred, reference = emp_test$resigned,
-                positive = "Yes")  # mode = "prec_recall" if preferred
-# Here Sensitivity = true positives (aka "Recall")
+                positive = "Yes", mode = "prec_recall")
+# Here Sensitivity (true positives, aka "Recall") = 77%. 20 out of 26 employees who resigned in 2015 were correctly predicted.
+varImpPlot(emp_res_rose_RF,type=1, main="Variable Importance (Accuracy)",
+           sub = "Random Forest Model")
+varImpPlot(emp_res_rose_RF,type=2, main="Variable Importance (Node Impurity)",
+           sub = "Random Forest Model")
+var_importance <-importance(emp_res_rose_RF)
+var_importance
 
+## Can we view the individuals identified as predicted to resign?
+emp_res_rose_RF_pred_probs <- predict(emp_res_rose_RF, emp_test, type="prob")
+Employees_flight_risk <- as.data.frame(cbind(emp_test$EmployeeID,emp_res_rose_RF_pred_probs, as.character(emp_test$resigned)))
+Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
 
 
 ####################
@@ -193,9 +205,6 @@ confusionMatrix(data = emp_res_boost_pred, reference = emp_test$resigned,
 
 
 ##### 
-# 1. try under-, over-sampling, & ROSE on 'resigned'
-#     (https://www.r-bloggers.com/dealing-with-unbalanced-data-in-machine-learning/)
-# 2. repeat random forest
 # 3. xgboost model
 
 
