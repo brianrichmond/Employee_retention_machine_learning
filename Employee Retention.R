@@ -172,12 +172,33 @@ library(gbm)
 
 ##  APPROACH 1
 #  (https://www.r-bloggers.com/gradient-boosting-in-r/)
-emp_res_boost <- gbm(resigned ~ ., data = emp_train[res_vars],
-                     distribution = "gaussian", n.trees = 1000,
+emp_res_boost_gauss <- gbm(resigned ~ ., data = emp_train[res_vars],
+                     distribution = "gaussian", n.trees = 10000,
                      shrinkage = 0.01, interaction.depth = 4)
-#  gbm model takes a few min with n.trees = 10000, and generated same 7 variables with similar variable importance profile
+emp_res_boost_gauss
+summary(emp_res_boost_gauss)
+
+
+
+
+# from https://rpubs.com/omicsdata/gbm :
+emp_train_b <- emp_train
+emp_train_b$resigned <- as.numeric(emp_train_b$resigned)
+emp_train_b <- transform(emp_train_b, resigned=resigned-1)  # bernoulli distribution requires response to be 0, 1
+emp_res_boost <- gbm(resigned ~ ., data = emp_train_b[res_vars],
+                     distribution = "bernoulli", n.trees = 10000,
+                     shrinkage = 0.01, cv.folds=5, verbose=F)
+# Took 5 min to run w 10000 trees
 emp_res_boost
+best_iter <- gbm.perf(emp_res_boost, method = "cv")
+best_iter
 summary(emp_res_boost)
+# Plot the marginal effect of the selected variables by "integrating" out the other variables.
+plot.gbm(emp_res_boost, 1, best_iter)
+plot.gbm(emp_res_boost, 2, best_iter)
+plot.gbm(emp_res_boost, 3, best_iter)
+
+
 
 # generate a prediction matrix for each Tree
 num_trees <- seq(from=100, to=10000, by=100)  # no of trees; vector of 100 values
@@ -196,11 +217,12 @@ ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, classProbs
 emp_res_gbm <- train(resigned ~ ., data = emp_train[res_vars], method = 'gbm',
                      trControl = ctrl, metric = 'map', verbose = FALSE)
 ### THIS TOOK A LONG TIME
-
 emp_res_gbm
 summary(emp_res_gbm)
 
-confusionMatrix(data = emp_res_boost_pred, reference = emp_test$resigned,
+# Predictions of test data set
+emp_res_gbm_pred <- predict(emp_res_gbm, emp_test)
+confusionMatrix(data = emp_res_gbm_pred, reference = emp_test$resigned,
                 positive = "Yes")  # mode = "prec_recall" if preferred
 
 
