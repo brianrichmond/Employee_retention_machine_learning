@@ -246,6 +246,9 @@ emp_res_caretgbm_preds <- predict(object = emp_res_caretgbm,
 head(emp_res_caretgbm_preds)
 print(postResample(pred = emp_res_caretgbm_preds,
                    obs = as.factor(emp_test$resigned)))
+confusionMatrix(emp_res_caretgbm)
+
+
 
 
 ############################################################
@@ -253,7 +256,6 @@ print(postResample(pred = emp_res_caretgbm_preds,
 ############################################################
 
 #### TRY AGAIN using:
-#  1. find a way to calculate confusion matrix
 #  2. rose-balanced data
 
 
