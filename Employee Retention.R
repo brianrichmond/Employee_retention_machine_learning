@@ -168,22 +168,15 @@ Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
    # (XGBoost is a very popular algorithm. Short for Extreme Gradient Boosting, XGBoost gained popularity in data science after the famous Kaggle competition called Otto Classification challenge. XGBoost works only with numeric data. Can 'one hot code' categorical variables if there are a reasonably small number of categories within each variable and/or there is ample data.)
 ## Use gbm, 'Generalized Boosted Regression Models'
 
-library(gbm)
+
+####################
+## Using gbm library
+####################
+# library(gbm)
 
 ##  APPROACH 1
-#  (https://www.r-bloggers.com/gradient-boosting-in-r/)
-emp_res_boost_gauss <- gbm(resigned ~ ., data = emp_train[res_vars],
-                     distribution = "gaussian", n.trees = 10000,
-                     shrinkage = 0.01, interaction.depth = 4)
-emp_res_boost_gauss
-summary(emp_res_boost_gauss)
-
-#####################
-#####################  RESUME HERE
-#####################
-
-
-# from https://rpubs.com/omicsdata/gbm :
+# from https://rpubs.com/omicsdata/gbm ;
+# also check out https://amunategui.github.io/binary-outcome-modeling/:
 emp_train_b <- emp_train
 emp_train_b$resigned <- as.numeric(emp_train_b$resigned)
 emp_train_b <- transform(emp_train_b, resigned=resigned-1)  # bernoulli distribution requires response to be 0, 1
@@ -194,18 +187,80 @@ emp_res_boost <- gbm(resigned ~ ., data = emp_train_b[res_vars],
 emp_res_boost
 best_iter <- gbm.perf(emp_res_boost, method = "cv")
 best_iter
-summary(emp_res_boost)
+print(emp_res_boost)  # outputs the key model attributes & best cross-validated iteration
+summary(emp_res_boost)  # summary of variable influences & plot
+## This model identifies the same top 3 main factors as the gbm using the gaussian approach below; not sure that gaussian is the right approach
 # Plot the marginal effect of the selected variables by "integrating" out the other variables.
 plot.gbm(emp_res_boost, 1, best_iter)
 plot.gbm(emp_res_boost, 2, best_iter)
 plot.gbm(emp_res_boost, 3, best_iter)
 
+# also check out https://amunategui.github.io/binary-outcome-modeling/:
+emp_res_boost_preds <- predict(object = emp_res_boost,
+                               emp_test[res_vars],
+                               n.trees = best_iter,
+                               type = "response")
+summary(emp_res_boost_preds)
+
+# Check out model predictions on training set
+#  useful, BUT LACKS CONFUSION MATRIX: http://allstate-university-hackathons.github.io/PredictionChallenge2016/GBM
+emp_res_boost_train_preds <- predict(object = emp_res_boost,
+                                     newdata = emp_train[res_vars],
+                                     n.trees = best_iter,
+                                     type = "response")
+head(emp_res_boost_train_preds)
+head(data.frame("Actual" = emp_train$resigned,
+                 "Predicted" = emp_res_boost_train_preds))
+
+####################
+## Using caret library for gbm
+####################
+library(caret)
+objControl <- trainControl(method = 'cv', number = 3,
+                           returnResamp='none',
+                           summaryFunction = twoClassSummary,
+                           classProbs = TRUE)
+emp_res_caretgbm <- train(resigned ~ ., data = emp_train[res_vars],
+                          method = 'gbm',
+                          trControl = objControl,
+                          metric = "ROC",
+                          preProc = c("center", "scale"))
+summary(emp_res_caretgbm)
+# rel.inf
+# age                                      36.3041936
+# length_of_service                        27.8745814
+# department_nameCustomer Service           9.8522079
+# gender_fullMale                           5.8563353
+# city_nameChilliwack                       4.6168236
+# store_name                                4.2605269
+# job_titleCashier                          2.7502987
+# city_nameSquamish                         2.4191616
+# city_nameSurrey                           0.9735965
+# department_nameProcessed Foods            0.8287877
+# city_namePrince George                    0.6929010
+# city_nameKelowna                          0.6343884
+print(emp_res_caretgbm)
+emp_res_caretgbm_preds <- predict(object = emp_res_caretgbm,
+                                  emp_test[res_vars],
+                                  type = 'raw')
+head(emp_res_caretgbm_preds)
+print(postResample(pred = emp_res_caretgbm_preds,
+                   obs = as.factor(emp_test$resigned)))
 
 
-# generate a prediction matrix for each Tree
-num_trees <- seq(from=100, to=10000, by=100)  # no of trees; vector of 100 values
-emp_res_boost_pred <- predict(emp_res_boost, emp_test, n.trees = num_trees)
-dim(emp_res_boost_pred)
+############################################################
+## RESUME HERE
+############################################################
+
+#### TRY AGAIN using:
+#  1. find a way to calculate confusion matrix
+#  2. rose-balanced data
+
+
+#
+# confusionMatrix(data = emp_res_boost_train_preds, reference = emp_train$resigned,
+#                 positive = "Yes")  # mode = "prec_recall" if preferred
+
 
 
 ##  APPROACH 2
@@ -227,8 +282,19 @@ emp_res_gbm_pred <- predict(emp_res_gbm, emp_test)
 confusionMatrix(data = emp_res_gbm_pred, reference = emp_test$resigned,
                 positive = "Yes")  # mode = "prec_recall" if preferred
 
+####### NOTES
+# Approach 1b
+#  (https://www.r-bloggers.com/gradient-boosting-in-r/)
+#  NOTES: gaussian may not be the best approach here bc binary category classification
+emp_res_boost_gauss <- gbm(resigned ~ ., data = emp_train[res_vars],
+                           distribution = "gaussian", n.trees = 10000,
+                           shrinkage = 0.01, interaction.depth = 4)
+emp_res_boost_gauss
+summary(emp_res_boost_gauss)
 
-##### 
-# 3. xgboost model
+# # plot of 'resigned' with main factors
+# plot(emp_res_boost_gauss, i="age")
+# plot(emp_res_boost_gauss, i="length_of_service")
+# plot(emp_res_boost_gauss, i="city_name")
 
 
