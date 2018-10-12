@@ -102,7 +102,8 @@ var_importance
 
 ###### figure with decision tree??
 
-
+####################
+## RESIGNATIONS (Employees who left voluntarily before retirement)
 ####################
 ## Random forest model of voluntary terminations (resignations)
 # create separate variable for voluntary_terminations
@@ -127,8 +128,9 @@ emp_res_RF  # view results & Confusion matrix
 emp_res_RF_pred <- predict(emp_res_RF, newdata = emp_test)
 confusionMatrix(data = emp_res_RF_pred, reference = emp_test$resigned,
                 positive = "Yes", mode = "prec_recall")
-# Here Sensitivity = true positives (aka "Recall")
-## Sensitivity = 0; the model completely failed. It's worse than random guessing!
+# Recall = 0!
+# Recall = true positives/ (true positives + false negatives), or % of the true cases that were correctly identified (aka Sensitivity)
+# the model completely failed. It's worse than random guessing!
 
 
 ## Next step: create more balanced datasets:
@@ -143,13 +145,15 @@ emp_res_rose_RF <- randomForest(resigned ~ .,
                            ntree=500, importance = TRUE,
                            na.action = na.omit)
 emp_res_rose_RF  # view results & Confusion matrix
+# Recall = 0.859, and Precision = 0.811; much better on train set, but how badly did the model overfit? Let's check against the test data.
 
 ## Let's try the model on the test set:
 # generate predictions based on test data ("emp_test")
 emp_res_rose_RF_pred <- predict(emp_res_rose_RF, newdata = emp_test)
 confusionMatrix(data = emp_res_rose_RF_pred, reference = emp_test$resigned,
                 positive = "Yes", mode = "prec_recall")
-# Here Sensitivity (true positives, aka "Recall") = 77%. 20 out of 26 employees who resigned in 2015 were correctly predicted.
+# Here Recall = 77%. 20 out of 26 employees who resigned in 2015 were correctly predicted. But, Precision = 0.019, so only 2% of those identified as 'at risk' actually resigned. Is this a problem? Well, yes and no...
+
 varImpPlot(emp_res_rose_RF,type=1, main="Variable Importance (Accuracy)",
            sub = "Random Forest Model")
 varImpPlot(emp_res_rose_RF,type=2, main="Variable Importance (Node Impurity)",
@@ -165,10 +169,83 @@ Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
 
 ####################
 ##  Gradient Boost Model
-   # (XGBoost is a very popular algorithm. Short for Extreme Gradient Boosting, XGBoost gained popularity in data science after the famous Kaggle competition called Otto Classification challenge. XGBoost works only with numeric data. Can 'one hot code' categorical variables if there are a reasonably small number of categories within each variable and/or there is ample data.)
-## Use gbm, 'Generalized Boosted Regression Models'
+####################
+## Using caret library for gbm
+####################
+library(caret)
+objControl <- trainControl(method = 'cv', number = 3,
+                           returnResamp='none',
+                           summaryFunction = twoClassSummary,
+                           classProbs = TRUE)
+emp_res_caretgbm <- train(resigned ~ ., data = emp_train[res_vars],
+                          method = 'gbm',
+                          trControl = objControl,
+                          metric = "ROC",
+                          preProc = c("center", "scale"))
+summary(emp_res_caretgbm)
+# rel.inf
+# age                                      36.3041936
+# length_of_service                        27.8745814
+# department_nameCustomer Service           9.8522079
+# gender_fullMale                           5.8563353
+# city_nameChilliwack                       4.6168236
+# store_name                                4.2605269
+# job_titleCashier                          2.7502987
+# city_nameSquamish                         2.4191616
+# city_nameSurrey                           0.9735965
+# department_nameProcessed Foods            0.8287877
+# city_namePrince George                    0.6929010
+# city_nameKelowna                          0.6343884
+print(emp_res_caretgbm)
+emp_res_caretgbm_preds <- predict(object = emp_res_caretgbm,
+                                  emp_test[res_vars],
+                                  type = 'raw')
+head(emp_res_caretgbm_preds)
+print(postResample(pred = emp_res_caretgbm_preds,
+                   obs = as.factor(emp_test$resigned)))
+confusionMatrix(emp_res_caretgbm)
+## Accuracy is high (99.2%) because all 'resigned' are predicted 'No'; there are no true positives
+confusionMatrix(data = emp_res_caretgbm, reference = emp_test$resigned,
+                positive = 'Yes')
 
 
+
+############################################################
+## RESUME HERE
+############################################################
+
+#### TRY AGAIN using:
+#  2. rose-balanced data
+
+
+# confusionMatrix(data = emp_res_boost_train_preds,
+#                 reference = emp_train$resigned,
+#                 positive = "Yes")  # mode = "prec_recall" if preferred
+
+
+
+##  APPROACH 2
+#  (https://rstudio-pubs-static.s3.amazonaws.com/79417_b67efa7505eb42d7a2986aef215a8b8e.html)
+# Get ready to set up and use caret
+# Set the control parameters for the training step
+# classProbs are required to return probability of outcome (pregnant and not pregnant in this case)
+# summaryFunction is set to return outcome as a set of binary classification results
+# ten-fold cross validation is used by default
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, classProbs = TRUE, summaryFunction = twoClassSummary)
+emp_res_gbm <- train(resigned ~ ., data = emp_train[res_vars], method = 'gbm',
+                     trControl = ctrl, metric = 'map', verbose = FALSE)
+### THIS TOOK A LONG TIME
+emp_res_gbm
+summary(emp_res_gbm)
+
+# Predictions of test data set
+emp_res_gbm_pred <- predict(emp_res_gbm, emp_test)
+confusionMatrix(data = emp_res_gbm_pred, reference = emp_test$resigned,
+                positive = "Yes")  # mode = "prec_recall" if preferred
+
+
+#################### NOTES ####################
+# Approach 1b
 ####################
 ## Using gbm library
 ####################
@@ -210,82 +287,8 @@ emp_res_boost_train_preds <- predict(object = emp_res_boost,
                                      type = "response")
 head(emp_res_boost_train_preds)
 head(data.frame("Actual" = emp_train$resigned,
-                 "Predicted" = emp_res_boost_train_preds))
+                "Predicted" = emp_res_boost_train_preds))
 
-####################
-## Using caret library for gbm
-####################
-library(caret)
-objControl <- trainControl(method = 'cv', number = 3,
-                           returnResamp='none',
-                           summaryFunction = twoClassSummary,
-                           classProbs = TRUE)
-emp_res_caretgbm <- train(resigned ~ ., data = emp_train[res_vars],
-                          method = 'gbm',
-                          trControl = objControl,
-                          metric = "ROC",
-                          preProc = c("center", "scale"))
-summary(emp_res_caretgbm)
-# rel.inf
-# age                                      36.3041936
-# length_of_service                        27.8745814
-# department_nameCustomer Service           9.8522079
-# gender_fullMale                           5.8563353
-# city_nameChilliwack                       4.6168236
-# store_name                                4.2605269
-# job_titleCashier                          2.7502987
-# city_nameSquamish                         2.4191616
-# city_nameSurrey                           0.9735965
-# department_nameProcessed Foods            0.8287877
-# city_namePrince George                    0.6929010
-# city_nameKelowna                          0.6343884
-print(emp_res_caretgbm)
-emp_res_caretgbm_preds <- predict(object = emp_res_caretgbm,
-                                  emp_test[res_vars],
-                                  type = 'raw')
-head(emp_res_caretgbm_preds)
-print(postResample(pred = emp_res_caretgbm_preds,
-                   obs = as.factor(emp_test$resigned)))
-confusionMatrix(emp_res_caretgbm)
-
-
-
-
-############################################################
-## RESUME HERE
-############################################################
-
-#### TRY AGAIN using:
-#  2. rose-balanced data
-
-
-# confusionMatrix(data = emp_res_boost_train_preds,
-#                 reference = emp_train$resigned,
-#                 positive = "Yes")  # mode = "prec_recall" if preferred
-
-
-
-##  APPROACH 2
-#  (https://rstudio-pubs-static.s3.amazonaws.com/79417_b67efa7505eb42d7a2986aef215a8b8e.html)
-# Get ready to set up and use caret
-# Set the control parameters for the training step
-# classProbs are required to return probability of outcome (pregnant and not pregnant in this case)
-# summaryFunction is set to return outcome as a set of binary classification results
-# ten-fold cross validation is used by default
-ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, classProbs = TRUE, summaryFunction = twoClassSummary)
-emp_res_gbm <- train(resigned ~ ., data = emp_train[res_vars], method = 'gbm',
-                     trControl = ctrl, metric = 'map', verbose = FALSE)
-### THIS TOOK A LONG TIME
-emp_res_gbm
-summary(emp_res_gbm)
-
-# Predictions of test data set
-emp_res_gbm_pred <- predict(emp_res_gbm, emp_test)
-confusionMatrix(data = emp_res_gbm_pred, reference = emp_test$resigned,
-                positive = "Yes")  # mode = "prec_recall" if preferred
-
-####### NOTES
-# Approach 1b
 #  (https://www.r-bloggers.com/gradient-boosting-in-r/)
 #  NOTES: gaussian may not be the best approach here bc binary category classification
 emp_res_boost_gauss <- gbm(resigned ~ ., data = emp_train[res_vars],
