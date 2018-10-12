@@ -178,7 +178,9 @@ emp_res_boost_gauss <- gbm(resigned ~ ., data = emp_train[res_vars],
 emp_res_boost_gauss
 summary(emp_res_boost_gauss)
 
-
+#####################
+#####################  RESUME HERE
+#####################
 
 
 # from https://rpubs.com/omicsdata/gbm :
