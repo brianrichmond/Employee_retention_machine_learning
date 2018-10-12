@@ -257,8 +257,8 @@ print(postResample(pred = emp_res_caretgbm_preds,
 #  2. rose-balanced data
 
 
-#
-# confusionMatrix(data = emp_res_boost_train_preds, reference = emp_train$resigned,
+# confusionMatrix(data = emp_res_boost_train_preds,
+#                 reference = emp_train$resigned,
 #                 positive = "Yes")  # mode = "prec_recall" if preferred
 
 
