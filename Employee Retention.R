@@ -49,31 +49,27 @@ featurePlot(x=emp[,6:7], y=emp$STATUS,plot="density",auto.key = list(columns = 2
 
 ### Modeling
 # Partition the data into training and test sets
-library(rattle) # graphical interface for data science in R
-library(magrittr) # For the %>% and %<>% operators.
+library(rattle)  # graphical interface for data science in R
+library(magrittr)  # For %>% and %<>% operators.
+
+# Here we use all years before 2015 (2006-14) as the training set, with the last year (2015) as the test set
+emp_term_train <- subset(emp, STATUS_YEAR < 2015)
+emp_term_test <- subset(emp, STATUS_YEAR == 2015)
+
+set.seed(314) # set a pre-defined value for the random seed so that results are repeatable
 
 ####################
 ## RESUME HERE - Add rpart decision tree plot?
 ####################
-
-
-
-
-
-
-# Here we use all years before 2015 (2006-14) as the training set, with the last year (2015) as the test set
-emp_train <- subset(emp, STATUS_YEAR < 2015)
-emp_test <- subset(emp, STATUS_YEAR == 2015)
-
-set.seed(314) # set a pre-defined value for the random seed so that results are repeatable
+library(rpart.plot)
 
 ## RANDOM FOREST MODEL of terminations
 ## No NAs in dataset, so no need to impute or take other measures
 library(randomForest)  # random forest modeling
 # select variables to be included in model predicting terminations, resignations (voluntary terminations)
-term_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","STATUS")
+term_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","BUSINESS_UNIT","STATUS")
 emp_term_RF <- randomForest(STATUS ~ .,
-                            data = emp_train[term_vars],
+                            data = emp_term_train[term_vars],
                             ntree=500, importance = TRUE,
                             na.action = na.omit)
 emp_term_RF  # view results & Confusion matrix
@@ -86,10 +82,10 @@ emp_term_RF  # view results & Confusion matrix
 
 # predictions based on test dataset (2015)
 # generate predictions based on test data ("emp_test")
-emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_test)
+emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_term_test)
 if(!"e1071" %in% installed.packages()) install.packages("e1071")  # package e1071 required for confusionMatrix function
 
-confusionMatrix(data = emp_term_RF_pred, reference = emp_test$STATUS,
+confusionMatrix(data = emp_term_RF_pred, reference = emp_term_test$STATUS,
                 positive = "TERMINATED")  # mode = "prec_recall" if preferred
 # Here Sensitivity = true positives (aka "Recall")
 ## Sensitivity = 0.389; pretty low
@@ -104,7 +100,17 @@ var_importance
 
 ## 'age' is the most important variable, probably because many of the terminations are retirements
 
-###### figure with decision tree??
+set.seed(42)
+# Decision tree model
+rpart_model <- rpart(STATUS ~.,
+                     data = emp_term_train[term_vars],
+                     method = 'class',
+                     parms = list(split='information'),
+                     control = rpart.control(usesurrogate = 0,
+                                             maxsurrogate = 0))
+# Plot the decision tree
+rpart.plot(rpart_model, roundint = FALSE, type = 3)
+
 
 ####################
 ## RESIGNATIONS (Employees who left voluntarily before retirement)
@@ -119,7 +125,7 @@ summary(emp$resigned)  # see that there are only 385 resignations
 emp_train <- subset(emp, STATUS_YEAR < 2015)
 emp_test <- subset(emp, STATUS_YEAR == 2015)
 
-res_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","resigned")
+res_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","BUSINESS_UNIT","resigned")
 emp_res_RF <- randomForest(resigned ~ .,
                             data = emp_train[res_vars],
                             ntree=500, importance = TRUE,
@@ -164,6 +170,18 @@ varImpPlot(emp_res_rose_RF,type=2, main="Variable Importance (Node Impurity)",
            sub = "Random Forest Model")
 var_importance <-importance(emp_res_rose_RF)
 var_importance
+
+set.seed(42)
+# Decision tree model
+rpart_res <- rpart(resigned ~.,
+                     data = emp_train_rose[res_vars],
+                     method = 'class',
+                     parms = list(split='information'),
+                     control = rpart.control(usesurrogate = 0,
+                                             maxsurrogate = 0))
+# Plot the decision tree
+rpart.plot(rpart_res, type = 4)
+
 
 
 ####################
