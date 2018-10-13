@@ -3,24 +3,33 @@
 ##    1. Create model to accurately predict employees who leave
 ##    2. Identify key factors related to employee churn
 ## Brian Richmond
-## Updated 2018-10-8
+## Updated 2018-10-13
 
+## TEXT
+# INTRO - Why is this important?
+# Let's first look at the data
 
+## ---------------- [code chunks for R Markdown]
 # load data
 emp <- read.csv("MFG10YearTerminationData_Kaggle.csv", header = TRUE)
+emp$termreason_desc <- as.factor(gsub("Resignaton", "Resignation", emp$termreason_desc))  # correct misspelling in original Kaggle dataset
+## ----------------
 
+## ---------------- [Don't run]
 # basic EDA
 dim(emp)  # number of rows & columns in data
 str(emp)  # structure of the data, data types
 summary(emp)  # summary stats
+## ----------------
 
-emp$termreason_desc <- as.factor(gsub("Resignaton", "Resignation", emp$termreason_desc))  # correct misspelling in original Kaggle dataset
-
+## TEXT
 ## Summary stats show that there are about 7,000 employee ids with records across years from 2006-15
-
+## The data contains 18 variables:
+## ----------------
+names(emp)  # simple list of variable names
 
 ####################
-# explore status/terminations by various variables 
+# explore status/terminations by year
 library(tidyr)  # data tidying (e.g., spread)
 library(data.table)  # data table manipulations (e.g., shift)
 library(dplyr)  # data manipulation w dataframes (e.g., filter)
@@ -28,12 +37,12 @@ status_count <- with(emp, table(STATUS_YEAR, STATUS))
 status_count <- spread(data.frame(status_count), STATUS, Freq)
 status_count$previous_active <- shift(status_count$ACTIVE, 1L, type = "lag")
 status_count$percent_terminated <- 100*status_count$TERMINATED / status_count$previous_active
-status_count
 status_count <- filter(status_count, !is.na(percent_terminated))  # remove first year with NA percent_terminated
+status_count
 
+# plot % terminations by year
 library(ggplot2)
 ggplot() + geom_point(aes(x = STATUS_YEAR, y = percent_terminated), data = status_count) + geom_smooth(method = "lm")  # plot percent_terminated by year
-
 
 ## explore terminated by reason, department, age, length_of_service
 # create a dataframe of the subset of terminated employees
@@ -42,26 +51,25 @@ terms <- as.data.frame(emp %>% filter(STATUS=="TERMINATED"))
 # plot terminations by reason
 ggplot() + geom_bar(aes(y = ..count..,x = STATUS_YEAR, fill = termreason_desc), data=terms, position = position_stack()) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+## ----------------
 
-# plot terminated & active by age & length_of_service
+## TEXT:
+## We can see that...
+
+## ----------------
+# plot terminated & active by age
 library(caret) # machine learning package for gbm (generalized boost regression models) + functions to streamline process for predictive models
-featurePlot(x=emp[,6:7], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
+featurePlot(x=emp[,6], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
 
 ### Modeling
 # Partition the data into training and test sets
 library(rattle)  # graphical interface for data science in R
 library(magrittr)  # For %>% and %<>% operators.
-
 # Here we use all years before 2015 (2006-14) as the training set, with the last year (2015) as the test set
 emp_term_train <- subset(emp, STATUS_YEAR < 2015)
 emp_term_test <- subset(emp, STATUS_YEAR == 2015)
 
 set.seed(314) # set a pre-defined value for the random seed so that results are repeatable
-
-####################
-## RESUME HERE - Add rpart decision tree plot?
-####################
-library(rpart.plot)
 
 ## RANDOM FOREST MODEL of terminations
 ## No NAs in dataset, so no need to impute or take other measures
@@ -74,32 +82,28 @@ emp_term_RF <- randomForest(STATUS ~ .,
                             na.action = na.omit)
 emp_term_RF  # view results & Confusion matrix
 
-## Calculate the AUC (Area Under the Curve) for train set on itself
-## AUC may not be the best measure of model success because we are interested in the successful classification of terminations. The large majority of successful classifications are 'active' employees, and these drive much of the AUC score.
-# library(pROC)
-# pROC::roc(emp_term_RF$y, as.numeric(emp_term_RF$predicted))
-
-
 # predictions based on test dataset (2015)
 # generate predictions based on test data ("emp_test")
 emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_term_test)
 if(!"e1071" %in% installed.packages()) install.packages("e1071")  # package e1071 required for confusionMatrix function
 
 confusionMatrix(data = emp_term_RF_pred, reference = emp_term_test$STATUS,
-                positive = "TERMINATED")  # mode = "prec_recall" if preferred
-# Here Sensitivity = true positives (aka "Recall")
-## Sensitivity = 0.389; pretty low
+                positive = "TERMINATED", mode = "prec_recall")
+## Recall = 0.389; pretty low
 
 # Examine important variables (type 1=mean decrease in accuracy; 2=...in node impurity)
 varImpPlot(emp_term_RF,type=1, main="Variable Importance (Accuracy)",
            sub = "Random Forest Model")
-varImpPlot(emp_term_RF,type=2, main="Variable Importance (Node Impurity)",
-           sub = "Random Forest Model")
 var_importance <-importance(emp_term_RF)
-var_importance
+var_importance[order(var_importance[,"MeanDecreaseAccuracy"], decreasing = TRUE),]
+## ----------------
+
 
 ## 'age' is the most important variable, probably because many of the terminations are retirements
 
+## ----------------
+# Visualize an example of a Decision Tree
+library(rpart.plot)
 set.seed(42)
 # Decision tree model
 rpart_model <- rpart(STATUS ~.,
@@ -110,8 +114,12 @@ rpart_model <- rpart(STATUS ~.,
                                              maxsurrogate = 0))
 # Plot the decision tree
 rpart.plot(rpart_model, roundint = FALSE, type = 3)
+## ----------------
 
+## TEXT HERE
+# on rationale for 1) predicting employees who might be at risk of leaving voluntarily before retirement
 
+## ----------------
 ####################
 ## RESIGNATIONS (Employees who left voluntarily before retirement)
 ####################
@@ -126,6 +134,7 @@ emp_train <- subset(emp, STATUS_YEAR < 2015)
 emp_test <- subset(emp, STATUS_YEAR == 2015)
 
 res_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","BUSINESS_UNIT","resigned")
+set.seed(321)
 emp_res_RF <- randomForest(resigned ~ .,
                             data = emp_train[res_vars],
                             ntree=500, importance = TRUE,
@@ -150,12 +159,13 @@ emp_train_rose <- ROSE(resigned ~ ., data = emp_train, seed=125)$data
 
 # Tables to show balanced dataset sample sizes
 table(emp_train_rose$resigned)
+set.seed(222)
 emp_res_rose_RF <- randomForest(resigned ~ .,
                            data = emp_train_rose[res_vars],
                            ntree=500, importance = TRUE,
                            na.action = na.omit)
 emp_res_rose_RF  # view results & Confusion matrix
-# Recall = 0.859, and Precision = 0.811; much better on train set, but how badly did the model overfit? Let's check against the test data.
+# Recall = 0.836, and Precision = 0.809; much better on train set, but how badly did the model overfit? Let's check against the test data.
 
 ## Let's try the model on the test set:
 # generate predictions based on test data ("emp_test")
@@ -166,29 +176,18 @@ confusionMatrix(data = emp_res_rose_RF_pred, reference = emp_test$resigned,
 
 varImpPlot(emp_res_rose_RF,type=1, main="Variable Importance (Accuracy)",
            sub = "Random Forest Model")
-varImpPlot(emp_res_rose_RF,type=2, main="Variable Importance (Node Impurity)",
-           sub = "Random Forest Model")
 var_importance <-importance(emp_res_rose_RF)
-var_importance
-
-set.seed(42)
-# Decision tree model
-rpart_res <- rpart(resigned ~.,
-                     data = emp_train_rose[res_vars],
-                     method = 'class',
-                     parms = list(split='information'),
-                     control = rpart.control(usesurrogate = 0,
-                                             maxsurrogate = 0))
-# Plot the decision tree
-rpart.plot(rpart_res, type = 4)
+var_importance[order(var_importance[, "MeanDecreaseAccuracy"], decreasing = TRUE),]
 
 
+## ----------------  DO NOT RUN
 
 ####################
 ##  Gradient Boost Model
 ####################
 ## Using caret library for gbm on the ROSE balanced dataset
 ####################
+set.seed(432)
 objControl <- trainControl(method = 'cv', number = 3,
                            returnResamp='none',
                            summaryFunction = twoClassSummary,
@@ -199,28 +198,44 @@ emp_res_rose_caretgbm <- train(resigned ~ ., data = emp_train_rose[res_vars],
                           metric = "ROC",
                           preProc = c("center", "scale"))
 summary(emp_res_rose_caretgbm)
-## RESULTS
+## ----------------
+
+# ## RESULTS
 # rel.inf
-# age                                      30.97525583
-# length_of_service                        23.47285958
-# job_titleCashier                         17.39096704
-# store_name                                5.74006769
-# department_nameCustomer Service           2.50122046
-# city_nameNorth Vancouver                  2.44459449
-# gender_fullMale                           1.85144125
-# city_nameFort St John                     1.54716022
-# city_nameKelowna                          1.41983272
-# department_nameDairy                      1.21885374
-# department_nameBakery                     0.94668087
-# city_nameFort Nelson                      0.83893859
-# department_nameMeats                      0.80716054
-# city_namePrince George                    0.80134320
-# job_titleHRIS Analyst                     0.69335138
-# city_nameNelson                           0.63738096
-# city_nameHaney                            0.56093727
-# city_nameAldergrove                       0.52803223
-# department_nameProcessed Foods            0.51099264
-# city_nameWhite Rock                       0.51050625
+# age                                      33.98446143
+# length_of_service                        19.52071297
+# job_titleCashier                         16.30481983
+# store_name                                5.67161358
+# department_nameCustomer Service           4.82690500
+# city_nameNorth Vancouver                  2.58634622
+# gender_fullMale                           1.95765476
+# city_nameFort St John                     1.57636866
+# city_nameKelowna                          1.40248879
+# department_nameDairy                      1.10500348
+# city_nameFort Nelson                      0.99132167
+# department_nameBakery                     0.88222027
+# city_namePrince George                    0.86301090
+# city_nameBurnaby                          0.74026459
+# job_titleHRIS Analyst                     0.69745324
+# city_nameAldergrove                       0.58151129
+# city_nameHaney                            0.55540743
+# department_nameMeats                      0.54998251
+# city_nameNelson                           0.53574120
+# city_nameWhite Rock                       0.53094640
+
+
+
+
+
+
+
+
+
+## ----------------
+## ADD PLOT OF AGE BY RESIGNED
+## ----------------
+## ----------------
+
 
 # plot terminations by reason & job_title
 ggplot() + geom_bar(aes(y = ..count.., x = job_title, fill = termreason_desc), data=terms, position = position_stack())+
@@ -237,20 +252,20 @@ print(emp_res_rose_caretgbm)
 emp_res_rose_caretgbm_preds <- predict(object = emp_res_rose_caretgbm,
                                   emp_test[res_vars],
                                   type = 'raw')
-head(emp_res_rose_caretgbm_preds)
 print(postResample(pred = emp_res_rose_caretgbm_preds,
                    obs = as.factor(emp_test$resigned)))
 confusionMatrix(data = emp_res_rose_caretgbm_preds, reference = emp_test$resigned,
                 positive = 'Yes', mode = 'prec_recall')
 
-# 15 of 26 employees who resigned were correctly identified (recall = 57.7%)
-# Out of the 958 employees identified as at risk, 15 resigned (precision = 1.6%)
+
+# 16 of 26 employees who resigned were correctly identified (Recall = 61.5%)
+# Out of the 1033 employees identified as at risk, 16 resigned (Precision = 1.55%)
 #
 #           'Caret gbm'   'random forest'
-# Accuracy :   81%              79%
-# Kappa :     0.0205          0.0274
-# Precision : 0.015658        0.019157
-# Recall :    0.576923        0.769231
+# Accuracy :   79%              79%
+# Kappa :     0.0202          0.0271
+# Precision : 0.015474        0.018993
+# Recall :    0.615385        0.769231
 #
 # These results underscore the difficulty in predicting rare events, especially those involving something as complex as human decisions. But remember that this is a fake data set, where only 26 out of 4,961 employees resigned in a year, or 0.5%. In 2016, the voluntary turnover rate was 12.8%, and as high as 20.7% in the hospitalityindustry. (http://www.compensationforce.com/2017/04/2016-turnover-rates-by-industry.html) While retirements account for some of that turnover, most of it is cause by employees leaving for jobs at other companies.
 # One third (33 percent) of leaders at companies with 100 plus employees are currently looking for jobs,according to one article on employee retention (https://www.tlnt.com/9-employee-retention-statistics-that-will-make-you-sit-up-and-pay-attention/)
@@ -258,7 +273,7 @@ confusionMatrix(data = emp_res_rose_caretgbm_preds, reference = emp_test$resigne
 
 
 ####################
-##  Gradient Boost Model
+##  Random Forest Model
 ####################
 ## Can we view the individuals identified as predicted to resign?
 emp_res_rose_RF_pred_probs <- predict(emp_res_rose_RF, emp_test, type="prob")
