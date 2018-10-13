@@ -32,7 +32,7 @@ status_count
 status_count <- filter(status_count, !is.na(percent_terminated))  # remove first year with NA percent_terminated
 
 library(ggplot2)
-ggplot() + geom_point(aes(x = STATUS_YEAR, y = percent_terminated), data = status_count) + geom_smooth(method = "lm")  # plot percent_termintaed by year
+ggplot() + geom_point(aes(x = STATUS_YEAR, y = percent_terminated), data = status_count) + geom_smooth(method = "lm")  # plot percent_terminated by year
 
 
 ## explore terminated by reason, department, age, length_of_service
@@ -43,18 +43,22 @@ terms <- as.data.frame(emp %>% filter(STATUS=="TERMINATED"))
 ggplot() + geom_bar(aes(y = ..count..,x = STATUS_YEAR, fill = termreason_desc), data=terms, position = position_stack()) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 
-# plot terminations by reason & department
-ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_desc), data=terms, position = position_stack())+
-  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
-
 # plot terminated & active by age & length_of_service
-library(caret) # machine learning package + functions to streamline process for predictive models
+library(caret) # machine learning package for gbm (generalized boost regression models) + functions to streamline process for predictive models
 featurePlot(x=emp[,6:7], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
 
 ### Modeling
 # Partition the data into training and test sets
 library(rattle) # graphical interface for data science in R
 library(magrittr) # For the %>% and %<>% operators.
+
+####################
+## RESUME HERE - Add rpart decision tree plot?
+####################
+
+
+
+
 
 
 # Here we use all years before 2015 (2006-14) as the training set, with the last year (2015) as the test set
@@ -161,87 +165,89 @@ varImpPlot(emp_res_rose_RF,type=2, main="Variable Importance (Node Impurity)",
 var_importance <-importance(emp_res_rose_RF)
 var_importance
 
-## Can we view the individuals identified as predicted to resign?
-emp_res_rose_RF_pred_probs <- predict(emp_res_rose_RF, emp_test, type="prob")
-Employees_flight_risk <- as.data.frame(cbind(emp_test$EmployeeID,emp_res_rose_RF_pred_probs, as.character(emp_test$resigned)))
-Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
+
+####################
+##  Gradient Boost Model
+####################
+## Using caret library for gbm on the ROSE balanced dataset
+####################
+objControl <- trainControl(method = 'cv', number = 3,
+                           returnResamp='none',
+                           summaryFunction = twoClassSummary,
+                           classProbs = TRUE)
+emp_res_rose_caretgbm <- train(resigned ~ ., data = emp_train_rose[res_vars],
+                          method = 'gbm',
+                          trControl = objControl,
+                          metric = "ROC",
+                          preProc = c("center", "scale"))
+summary(emp_res_rose_caretgbm)
+## RESULTS
+# rel.inf
+# age                                      30.97525583
+# length_of_service                        23.47285958
+# job_titleCashier                         17.39096704
+# store_name                                5.74006769
+# department_nameCustomer Service           2.50122046
+# city_nameNorth Vancouver                  2.44459449
+# gender_fullMale                           1.85144125
+# city_nameFort St John                     1.54716022
+# city_nameKelowna                          1.41983272
+# department_nameDairy                      1.21885374
+# department_nameBakery                     0.94668087
+# city_nameFort Nelson                      0.83893859
+# department_nameMeats                      0.80716054
+# city_namePrince George                    0.80134320
+# job_titleHRIS Analyst                     0.69335138
+# city_nameNelson                           0.63738096
+# city_nameHaney                            0.56093727
+# city_nameAldergrove                       0.52803223
+# department_nameProcessed Foods            0.51099264
+# city_nameWhite Rock                       0.51050625
+
+# plot terminations by reason & job_title
+ggplot() + geom_bar(aes(y = ..count.., x = job_title, fill = termreason_desc), data=terms, position = position_stack())+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+
+# plot terminations by reason & department
+ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_desc), data=terms, position = position_stack())+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+
+# We can see that resignations are particularly high in certain job_titles, such as Cashier, and in many of the departments identified in the gbm model, such as Customer Service, Dairy, and Bakery
+
+
+print(emp_res_rose_caretgbm)
+emp_res_rose_caretgbm_preds <- predict(object = emp_res_rose_caretgbm,
+                                  emp_test[res_vars],
+                                  type = 'raw')
+head(emp_res_rose_caretgbm_preds)
+print(postResample(pred = emp_res_rose_caretgbm_preds,
+                   obs = as.factor(emp_test$resigned)))
+confusionMatrix(data = emp_res_rose_caretgbm_preds, reference = emp_test$resigned,
+                positive = 'Yes', mode = 'prec_recall')
+
+# 15 of 26 employees who resigned were correctly identified (recall = 57.7%)
+# Out of the 958 employees identified as at risk, 15 resigned (precision = 1.6%)
+#
+#           'Caret gbm'   'random forest'
+# Accuracy :   81%              79%
+# Kappa :     0.0205          0.0274
+# Precision : 0.015658        0.019157
+# Recall :    0.576923        0.769231
+#
+# These results underscore the difficulty in predicting rare events, especially those involving something as complex as human decisions. But remember that this is a fake data set, where only 26 out of 4,961 employees resigned in a year, or 0.5%. In 2016, the voluntary turnover rate was 12.8%, and as high as 20.7% in the hospitalityindustry. (http://www.compensationforce.com/2017/04/2016-turnover-rates-by-industry.html) While retirements account for some of that turnover, most of it is cause by employees leaving for jobs at other companies.
+# One third (33 percent) of leaders at companies with 100 plus employees are currently looking for jobs,according to one article on employee retention (https://www.tlnt.com/9-employee-retention-statistics-that-will-make-you-sit-up-and-pay-attention/)
+# So, this turnover risk model worls better on 'real' data, especially at a company where a segment has high voluntary turnover.
 
 
 ####################
 ##  Gradient Boost Model
 ####################
-## Using caret library for gbm
-####################
-library(caret)
-objControl <- trainControl(method = 'cv', number = 3,
-                           returnResamp='none',
-                           summaryFunction = twoClassSummary,
-                           classProbs = TRUE)
-emp_res_caretgbm <- train(resigned ~ ., data = emp_train[res_vars],
-                          method = 'gbm',
-                          trControl = objControl,
-                          metric = "ROC",
-                          preProc = c("center", "scale"))
-summary(emp_res_caretgbm)
-# rel.inf
-# age                                      36.3041936
-# length_of_service                        27.8745814
-# department_nameCustomer Service           9.8522079
-# gender_fullMale                           5.8563353
-# city_nameChilliwack                       4.6168236
-# store_name                                4.2605269
-# job_titleCashier                          2.7502987
-# city_nameSquamish                         2.4191616
-# city_nameSurrey                           0.9735965
-# department_nameProcessed Foods            0.8287877
-# city_namePrince George                    0.6929010
-# city_nameKelowna                          0.6343884
-print(emp_res_caretgbm)
-emp_res_caretgbm_preds <- predict(object = emp_res_caretgbm,
-                                  emp_test[res_vars],
-                                  type = 'raw')
-head(emp_res_caretgbm_preds)
-print(postResample(pred = emp_res_caretgbm_preds,
-                   obs = as.factor(emp_test$resigned)))
-confusionMatrix(emp_res_caretgbm)
-## Accuracy is high (99.2%) because all 'resigned' are predicted 'No'; there are no true positives
-confusionMatrix(data = emp_res_caretgbm, reference = emp_test$resigned,
-                positive = 'Yes')
+## Can we view the individuals identified as predicted to resign?
+emp_res_rose_RF_pred_probs <- predict(emp_res_rose_RF, emp_test, type="prob")
+Employees_flight_risk <- as.data.frame(cbind(emp_test$EmployeeID,emp_res_rose_RF_pred_probs, as.character(emp_test$resigned)))
+Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
+head(Employees_flight_risk)
 
-
-
-############################################################
-## RESUME HERE
-############################################################
-
-#### TRY AGAIN using:
-#  2. rose-balanced data
-
-
-# confusionMatrix(data = emp_res_boost_train_preds,
-#                 reference = emp_train$resigned,
-#                 positive = "Yes")  # mode = "prec_recall" if preferred
-
-
-
-##  APPROACH 2
-#  (https://rstudio-pubs-static.s3.amazonaws.com/79417_b67efa7505eb42d7a2986aef215a8b8e.html)
-# Get ready to set up and use caret
-# Set the control parameters for the training step
-# classProbs are required to return probability of outcome (pregnant and not pregnant in this case)
-# summaryFunction is set to return outcome as a set of binary classification results
-# ten-fold cross validation is used by default
-ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, classProbs = TRUE, summaryFunction = twoClassSummary)
-emp_res_gbm <- train(resigned ~ ., data = emp_train[res_vars], method = 'gbm',
-                     trControl = ctrl, metric = 'map', verbose = FALSE)
-### THIS TOOK A LONG TIME
-emp_res_gbm
-summary(emp_res_gbm)
-
-# Predictions of test data set
-emp_res_gbm_pred <- predict(emp_res_gbm, emp_test)
-confusionMatrix(data = emp_res_gbm_pred, reference = emp_test$resigned,
-                positive = "Yes")  # mode = "prec_recall" if preferred
 
 
 #################### NOTES ####################
@@ -288,6 +294,21 @@ emp_res_boost_train_preds <- predict(object = emp_res_boost,
 head(emp_res_boost_train_preds)
 head(data.frame("Actual" = emp_train$resigned,
                 "Predicted" = emp_res_boost_train_preds))
+
+##  APPROACH 2
+#  (https://rstudio-pubs-static.s3.amazonaws.com/79417_b67efa7505eb42d7a2986aef215a8b8e.html)
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, classProbs = TRUE, summaryFunction = twoClassSummary)
+emp_res_gbm <- train(resigned ~ ., data = emp_train[res_vars], method = 'gbm',
+                     trControl = ctrl, metric = 'map', verbose = FALSE)
+### THIS TOOK A LONG TIME
+emp_res_gbm
+summary(emp_res_gbm)
+
+# Predictions of test data set
+emp_res_gbm_pred <- predict(emp_res_gbm, emp_test)
+confusionMatrix(data = emp_res_gbm_pred, reference = emp_test$resigned,
+                positive = "Yes")  # mode = "prec_recall" if preferred
+
 
 #  (https://www.r-bloggers.com/gradient-boosting-in-r/)
 #  NOTES: gaussian may not be the best approach here bc binary category classification
