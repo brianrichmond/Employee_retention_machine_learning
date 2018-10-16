@@ -101,9 +101,7 @@ var_importance <-importance(emp_term_RF)
 var_importance[order(var_importance[,"MeanDecreaseAccuracy"], decreasing = TRUE),]
 ## ----------------
 
-
 ## 'age' is the most important variable, probably because many of the terminations are retirements
-
 
 ## ----------------
 # Visualize an example of a Decision Tree
