@@ -100,6 +100,10 @@ summary(emp$resigned)
 # This is a highly imbalanced dataset, so ML models will have difficulty identifying the rare class. For example, a random forest model (not shown, for brevity) run on this data had a recall of 0, meaning that the goal of the model completely failed and none of the 'resigned' employees in 2015 were correctly identified. There are a variety of options for adjusting for this imbalance, such as up-sampling the minority class, down-sampling the majority class, or using an algorithm to create synthetic data based on feature space similarities from minority samples (check out https://www.r-bloggers.com/dealing-with-unbalanced-data-in-machine-learning/). Here, we use the ROSE (Random Over Sampling Examples) package to create a more balanced dataset.
 
 # (https://www.r-bloggers.com/dealing-with-unbalanced-data-in-machine-learning/)
+
+# Subset the data again into train & test sets. Here we use all years before 2015 (2006-14) as the training set, with the last year (2015) as the test set
+emp_train <- subset(emp, STATUS_YEAR < 2015)
+emp_test <- subset(emp, STATUS_YEAR == 2015)
 library(ROSE)  # "Random Over Sampling Examples"; generates synthetic balanced samples
 emp_train_rose <- ROSE(resigned ~ ., data = emp_train, seed=125)$data
 
@@ -135,7 +139,6 @@ var_importance[order(var_importance[, "MeanDecreaseAccuracy"], decreasing = TRUE
 ##  Gradient Boost Model
 ####################
 ## Using caret library for gbm on the ROSE balanced dataset
-####################
 set.seed(432)
 objControl <- trainControl(method = 'cv', number = 3,
                            returnResamp='none',
@@ -150,41 +153,27 @@ summary(emp_res_rose_caretgbm)
 ## ----------------
 
 # ## RESULTS
-# rel.inf
-# age                                      33.98446143
-# length_of_service                        19.52071297
-# job_titleCashier                         16.30481983
-# store_name                                5.67161358
-# department_nameCustomer Service           4.82690500
-# city_nameNorth Vancouver                  2.58634622
-# gender_fullMale                           1.95765476
-# city_nameFort St John                     1.57636866
-# city_nameKelowna                          1.40248879
-# department_nameDairy                      1.10500348
-# city_nameFort Nelson                      0.99132167
-# department_nameBakery                     0.88222027
-# city_namePrince George                    0.86301090
-# city_nameBurnaby                          0.74026459
-# job_titleHRIS Analyst                     0.69745324
-# city_nameAldergrove                       0.58151129
-# city_nameHaney                            0.55540743
-# department_nameMeats                      0.54998251
-# city_nameNelson                           0.53574120
-# city_nameWhite Rock                       0.53094640
+# Make a table of the top results, without showing verbose output of caretgbm model
+caretgbm_var_imp <- data.frame(mycol = c("age33.98446143", "length_of_service19.52071297",
+                           "job_titleCashier16.30481983", "store_name5.67161358",
+                           "department_nameCustomer Service4.82690500",
+                           "city_nameNorth Vancouver2.58634622",
+                           "gender_fullMale1.95765476",
+                           "city_nameFort St John1.57636866",
+                           "city_nameKelowna1.40248879",
+                           "department_nameDairy1.10500348",
+                           "city_nameFort Nelson0.99132167",
+                           "department_nameBakery0.88222027"
+                           ))
+caretgbm_var_imp <- caretgbm_var_imp %>%
+  separate(mycol,
+           into = c("Variable", "Importance"),
+           sep = "(?<=[A-Za-z])(?=[0-9])"
+  )
+caretgbm_var_imp
 
-
-
-
-
-
-
-
-
-## ----------------
-## ADD PLOT OF AGE BY RESIGNED
-## ----------------
-## ----------------
-
+# plot resigned by reason & job_title
+featurePlot(x=emp[,6], y=emp$resigned,plot="density",auto.key = list(columns = 2))
 
 # plot terminations by reason & job_title
 ggplot() + geom_bar(aes(y = ..count.., x = job_title, fill = termreason_desc), data=terms, position = position_stack())+
@@ -195,7 +184,6 @@ ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_de
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 
 # We can see that resignations are particularly high in certain job_titles, such as Cashier, and in many of the departments identified in the gbm model, such as Customer Service, Dairy, and Bakery
-
 
 print(emp_res_rose_caretgbm)
 emp_res_rose_caretgbm_preds <- predict(object = emp_res_rose_caretgbm,
@@ -222,11 +210,14 @@ confusionMatrix(data = emp_res_rose_caretgbm_preds, reference = emp_test$resigne
 
 
 ####################
-##  Random Forest Model
+##  Predict employee resignation probabilities using random forest model
 ####################
-## Can we view the individuals identified as predicted to resign?
+##  Calculate prediction probabilites of employees who will resign
 emp_res_rose_RF_pred_probs <- predict(emp_res_rose_RF, emp_test, type="prob")
 Employees_flight_risk <- as.data.frame(cbind(emp_test$EmployeeID,emp_res_rose_RF_pred_probs, as.character(emp_test$resigned)))
+Employees_flight_risk <- rename(Employees_flight_risk,
+                                EmployeeID = V1,
+                                resign_prediction = V4)
 Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
 head(Employees_flight_risk)
 
