@@ -9,23 +9,18 @@
 # INTRO - Why is this important?
 # Let's first look at the data
 
-## ---------------- [code chunks for R Markdown]
 # load data
 emp <- read.csv("MFG10YearTerminationData_Kaggle.csv", header = TRUE)
 emp$termreason_desc <- as.factor(gsub("Resignaton", "Resignation", emp$termreason_desc))  # correct misspelling in original Kaggle dataset
-## ----------------
 
-## ---------------- [Don't run]
 # basic EDA
 dim(emp)  # number of rows & columns in data
 str(emp)  # structure of the data, data types
 summary(emp)  # summary stats
-## ----------------
 
 ## TEXT
 ## Summary stats show that there are about 7,000 employee ids with records across years from 2006-15
 ## The data contains 18 variables:
-## ----------------
 names(emp)  # simple list of variable names
 
 ####################
@@ -51,16 +46,9 @@ terms <- as.data.frame(emp %>% filter(STATUS=="TERMINATED"))
 # plot terminations by reason
 ggplot() + geom_bar(aes(y = ..count..,x = STATUS_YEAR, fill = termreason_desc), data=terms, position = position_stack()) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
-## ----------------
 
 ## TEXT:
 ## We can see that...
-
-## ----------------
-# plot terminated & active by age
-library(caret) # machine learning package for gbm (generalized boost regression models) + functions to streamline process for predictive models
-featurePlot(x=emp[,6], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
-
 
 ### Modeling
 # select variables to be included in model predicting terminations
@@ -71,39 +59,12 @@ library(rattle)  # graphical interface for data science in R
 library(magrittr)  # For %>% and %<>% operators.
 library(randomForest)  # random forest modeling
 
+
 # Partition the data into training and test sets
 emp_term_train <- subset(emp, STATUS_YEAR < 2015)
 emp_term_test <- subset(emp, STATUS_YEAR == 2015)
 
-## RANDOM FOREST MODEL of Terminations
-## No NAs in dataset, so no need to impute or take other measures
-emp_term_RF <- randomForest(STATUS ~ .,
-                            data = emp_term_train[term_vars],
-                            ntree=500, importance = TRUE,
-                            na.action = na.omit)
-emp_term_RF  # view results & Confusion matrix
 
-
-## predictions based on test dataset (2015)
-# generate predictions based on test data ("emp_test")
-set.seed(314) # set a pre-defined value for the random seed so that results are repeatable
-emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_term_test)
-if(!"e1071" %in% installed.packages()) install.packages("e1071")  # package e1071 required for confusionMatrix function
-
-confusionMatrix(data = emp_term_RF_pred, reference = emp_term_test$STATUS,
-                positive = "TERMINATED", mode = "prec_recall")
-## Recall = 0.389; pretty low
-
-# Examine important variables (type 1=mean decrease in accuracy; 2=...in node impurity)
-varImpPlot(emp_term_RF,type=1, main="Variable Importance (Accuracy)",
-           sub = "Random Forest Model")
-var_importance <-importance(emp_term_RF)
-var_importance[order(var_importance[,"MeanDecreaseAccuracy"], decreasing = TRUE),]
-## ----------------
-
-## 'age' is the most important variable, probably because many of the terminations are retirements
-
-## ----------------
 # Visualize an example of a Decision Tree
 library(rpart.plot)
 set.seed(99)
@@ -116,51 +77,38 @@ rpart_model <- rpart(STATUS ~.,
                                              maxsurrogate = 0))
 # Plot the decision tree
 rpart.plot(rpart_model, roundint = FALSE, type = 3)
-## ----------------
 
-## TEXT HERE
-# on rationale for 1) predicting employees who might be at risk of leaving voluntarily before retirement
+## 'age' is the most important variable, probably because many of the terminations are retirements
+# plot terminated & active by age
+library(caret) # machine learning package for gbm (generalized boost regression models) + functions to streamline process for predictive models
+featurePlot(x=emp[,6], y=emp$STATUS,plot="density",auto.key = list(columns = 2))
 
-## ----------------
+
 ####################
 ## RESIGNATIONS (Employees who left voluntarily before retirement)
 ####################
-## Random forest model of voluntary terminations (resignations)
+## TEXT HERE
+# on rationale for predicting employees who might be at risk of leaving voluntarily before retirement.
+# To do this, we need to create a 'resigned' variable.
+
 # create separate variable for voluntary_terminations
 emp$resigned <- ifelse(emp$termreason_desc == "Resignation", "Yes", "No")
 emp$resigned <- as.factor(emp$resigned)  # convert to factor (from character)
-summary(emp$resigned)  # see that there are only 385 resignations
+summary(emp$resigned)
 
-# Subset the data again into train & test sets. Here we use all years before 2015 (2006-14) as the training set, with the last year (2015) as the test set
-emp_train <- subset(emp, STATUS_YEAR < 2015)
-emp_test <- subset(emp, STATUS_YEAR == 2015)
+# see that there are only 385 resignations vs 49,268 non-resignations
+# This is a highly imbalanced dataset, so ML models will have difficulty identifying the rare class. For example, a random forest model (not shown, for brevity) run on this data had a recall of 0, meaning that the goal of the model completely failed and none of the 'resigned' employees in 2015 were correctly identified. There are a variety of options for adjusting for this imbalance, such as up-sampling the minority class, down-sampling the majority class, or using an algorithm to create synthetic data based on feature space similarities from minority samples (check out https://www.r-bloggers.com/dealing-with-unbalanced-data-in-machine-learning/). Here, we use the ROSE (Random Over Sampling Examples) package to create a more balanced dataset.
 
-res_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","BUSINESS_UNIT","resigned")
-set.seed(321)
-emp_res_RF <- randomForest(resigned ~ .,
-                            data = emp_train[res_vars],
-                            ntree=500, importance = TRUE,
-                            na.action = na.omit)
-emp_res_RF  # view results & Confusion matrix
-
-## The results show that none of the 'resigned' were accurately predicted by the model. That suggests that 1) there are too few 'resigned' in the model (too much imbalance), 2) the mock data used here really has no pattern in the employees who resigned, or 3) both.
-## Let's try the model on the test set:
-# generate predictions based on test data ("emp_test")
-emp_res_RF_pred <- predict(emp_res_RF, newdata = emp_test)
-confusionMatrix(data = emp_res_RF_pred, reference = emp_test$resigned,
-                positive = "Yes", mode = "prec_recall")
-# Recall = 0!
-# Recall = true positives/ (true positives + false negatives), or % of the true cases that were correctly identified (aka Sensitivity)
-# the model completely failed. It's worse than random guessing!
-
-
-## Next step: create more balanced datasets:
 # (https://www.r-bloggers.com/dealing-with-unbalanced-data-in-machine-learning/)
 library(ROSE)  # "Random Over Sampling Examples"; generates synthetic balanced samples
 emp_train_rose <- ROSE(resigned ~ ., data = emp_train, seed=125)$data
 
 # Tables to show balanced dataset sample sizes
 table(emp_train_rose$resigned)
+
+## RANDOM FOREST MODEL
+# Select variables (res_vars) for the model to predict 'resigned'
+res_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","BUSINESS_UNIT","resigned")
 set.seed(222)
 emp_res_rose_RF <- randomForest(resigned ~ .,
                            data = emp_train_rose[res_vars],
@@ -180,9 +128,8 @@ varImpPlot(emp_res_rose_RF,type=1, main="Variable Importance (Accuracy)",
            sub = "Random Forest Model")
 var_importance <-importance(emp_res_rose_RF)
 var_importance[order(var_importance[, "MeanDecreaseAccuracy"], decreasing = TRUE),]
+##
 
-
-## ----------------  DO NOT RUN
 
 ####################
 ##  Gradient Boost Model
@@ -282,3 +229,4 @@ emp_res_rose_RF_pred_probs <- predict(emp_res_rose_RF, emp_test, type="prob")
 Employees_flight_risk <- as.data.frame(cbind(emp_test$EmployeeID,emp_res_rose_RF_pred_probs, as.character(emp_test$resigned)))
 Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
 head(Employees_flight_risk)
+
