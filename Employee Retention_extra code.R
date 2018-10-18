@@ -11,7 +11,42 @@
 
 
 ####################
-## Random forest model of voluntary terminations (resignations) on dataset, without any steps to mitigate imbalance in dataset
+## RANDOM FOREST MODEL of Terminations (employees who left company for any reson)
+####################
+## No NAs in dataset, so no need to impute or take other measures
+
+# Partition the data into training and test sets
+emp_term_train <- subset(emp, STATUS_YEAR < 2015)
+emp_term_test <- subset(emp, STATUS_YEAR == 2015)
+## Random forest model
+emp_term_RF <- randomForest(STATUS ~ .,
+                            data = emp_term_train[term_vars],
+                            ntree=500, importance = TRUE,
+                            na.action = na.omit)
+emp_term_RF  # view results & Confusion matrix
+
+
+## predictions based on test dataset (2015)
+# generate predictions based on test data ("emp_test")
+set.seed(314) # set a pre-defined value for the random seed so that results are repeatable
+emp_term_RF_pred <- predict(emp_term_RF, newdata = emp_term_test)
+if(!"e1071" %in% installed.packages()) install.packages("e1071")  # package e1071 required for confusionMatrix function
+
+confusionMatrix(data = emp_term_RF_pred, reference = emp_term_test$STATUS,
+                positive = "TERMINATED", mode = "prec_recall")
+## Recall = 0.389; pretty low
+
+# Examine important variables (type 1=mean decrease in accuracy; 2=...in node impurity)
+varImpPlot(emp_term_RF,type=1, main="Variable Importance (Accuracy)",
+           sub = "Random Forest Model")
+var_importance <-importance(emp_term_RF)
+var_importance[order(var_importance[,"MeanDecreaseAccuracy"], decreasing = TRUE),]
+
+
+####################
+## RANDOM FOREST MODEL of Voluntary Terminations (resignations)
+####################
+## on dataset, without any steps to mitigate imbalance in dataset
 # create separate variable for voluntary_terminations
 emp$resigned <- ifelse(emp$termreason_desc == "Resignation", "Yes", "No")
 emp$resigned <- as.factor(emp$resigned)  # convert to factor (from character)
