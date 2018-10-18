@@ -189,8 +189,6 @@ print(emp_res_rose_caretgbm)
 emp_res_rose_caretgbm_preds <- predict(object = emp_res_rose_caretgbm,
                                   emp_test[res_vars],
                                   type = 'raw')
-print(postResample(pred = emp_res_rose_caretgbm_preds,
-                   obs = as.factor(emp_test$resigned)))
 confusionMatrix(data = emp_res_rose_caretgbm_preds, reference = emp_test$resigned,
                 positive = 'Yes', mode = 'prec_recall')
 
