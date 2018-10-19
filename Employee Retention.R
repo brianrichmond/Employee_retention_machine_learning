@@ -172,7 +172,7 @@ caretgbm_var_imp <- caretgbm_var_imp %>%
   )
 caretgbm_var_imp
 
-# plot resigned by reason & job_title
+# plot resigned by age
 featurePlot(x=emp[,6], y=emp$resigned,plot="density",auto.key = list(columns = 2), labels = c("Age (years)", ""))
 
 # plot terminations by reason & job_title
@@ -224,4 +224,3 @@ Employees_flight_risk <- rename(Employees_flight_risk,
                                 resign_prediction = V4)
 Employees_flight_risk <- arrange(Employees_flight_risk, desc(Yes))
 head(Employees_flight_risk)
-
