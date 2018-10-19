@@ -173,7 +173,7 @@ caretgbm_var_imp <- caretgbm_var_imp %>%
 caretgbm_var_imp
 
 # plot resigned by reason & job_title
-featurePlot(x=emp[,6], y=emp$resigned,plot="density",auto.key = list(columns = 2))
+featurePlot(x=emp[,6], y=emp$resigned,plot="density",auto.key = list(columns = 2), labels = c("Age (years)", ""))
 
 # plot terminations by reason & job_title
 ggplot() + geom_bar(aes(y = ..count.., x = job_title, fill = termreason_desc), data=terms, position = position_stack())+
@@ -181,6 +181,10 @@ ggplot() + geom_bar(aes(y = ..count.., x = job_title, fill = termreason_desc), d
 
 # plot terminations by reason & department
 ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_desc), data=terms, position = position_stack())+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+
+# plot terminations by reason & city
+ggplot() + geom_bar(aes(y = ..count.., x = city_name, fill = termreason_desc), data=terms, position = position_stack())+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 
 # We can see that resignations are particularly high in certain job_titles, such as Cashier, and in many of the departments identified in the gbm model, such as Customer Service, Dairy, and Bakery
@@ -212,7 +216,9 @@ confusionMatrix(data = emp_res_rose_caretgbm_preds, reference = emp_test$resigne
 ####################
 ##  Calculate prediction probabilites of employees who will resign
 emp_res_rose_RF_pred_probs <- predict(emp_res_rose_RF, emp_test, type="prob")
-Employees_flight_risk <- as.data.frame(cbind(emp_test$EmployeeID,emp_res_rose_RF_pred_probs, as.character(emp_test$resigned)))
+Employees_flight_risk <- as.data.frame(cbind(emp_test$EmployeeID,
+                                             emp_res_rose_RF_pred_probs,
+                                             as.character(emp_test$resigned)))
 Employees_flight_risk <- rename(Employees_flight_risk,
                                 EmployeeID = V1,
                                 resign_prediction = V4)
