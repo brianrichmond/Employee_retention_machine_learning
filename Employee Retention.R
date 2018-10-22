@@ -192,9 +192,9 @@ print(emp_res_rose_caretgbm)
 emp_res_rose_caretgbm_preds <- predict(object = emp_res_rose_caretgbm,
                                   emp_test[res_vars],
                                   type = 'raw')
-confusionMatrix(data = emp_res_rose_caretgbm_preds, reference = emp_test$resigned,
+confusionMatrix(data = emp_res_rose_caretgbm_preds,
+                reference = emp_test$resigned,
                 positive = 'Yes', mode = 'prec_recall')
-
 
 # 16 of 26 employees who resigned were correctly identified (Recall = 61.5%)
 # Out of the 1033 employees identified as at risk, 16 resigned (Precision = 1.55%)
