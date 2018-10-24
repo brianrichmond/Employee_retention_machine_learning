@@ -79,4 +79,29 @@ confusionMatrix(data = emp_res_RF_pred, reference = emp_test$resigned,
 
 
 ####################
+# NOTES
+####################
+# Try caret for random forest
+set.seed(314)
+objControl <- trainControl(method = 'cv', number = 3,
+                           returnResamp='none',
+                           summaryFunction = twoClassSummary,
+                           classProbs = TRUE)
+emp_res_rose_caretRF <- train(resigned ~ ., data = emp_train_rose[res_vars],
+                              method = 'rf',
+                              trControl = objControl,
+                              metric = "ROC",
+                              preProc = c("center", "scale"))
+## This takes a very, very long time (>> 15min)
+
+
+####################
+# Try another approach to examining variable importance
+# (from https://towardsdatascience.com/seeing-the-random-forest-from-the-decision-trees-an-intuitive-explanation-of-random-forest-beaa2d6a0d80)
+######
+# Save variable importance values from our model 
+var_imp <- varImp(emp_res_rose_RF)
+# Get row names of the variable importance data
+rownames(var_imp$importance)
+
 ####################
