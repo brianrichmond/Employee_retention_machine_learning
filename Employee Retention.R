@@ -10,7 +10,7 @@
 # Let's first look at the data
 
 # load data
-emp <- read.csv("MFG10YearTerminationData_Kaggle.csv", header = TRUE)
+emp <- read.csv("MFG10YearTerminationData.csv", header = TRUE)
 emp$termreason_desc <- as.factor(gsub("Resignaton", "Resignation", emp$termreason_desc))  # correct misspelling in original Kaggle dataset
 
 # basic EDA
